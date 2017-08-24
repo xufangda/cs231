@@ -48,7 +48,14 @@ class ThreeLayerConvNet(object):
         # hidden affine layer, and keys 'W3' and 'b3' for the weights and biases   #
         # of the output affine layer.                                              #
         ############################################################################
-        pass
+        C, H, W=input_dim
+        
+        self.params['W1']=np.random.normal(0,weight_scale,(num_filters,C,filter_size,filter_size))
+        self.params['b1']=np.zeros(num_filters)
+        self.params['W2']=np.random.normal(0,weight_scale,(H*W*num_filters/4,hidden_dim))
+        self.params['b2']=np.zeros(hidden_dim)
+        self.params['W3']=np.random.normal(0,weight_scale,[hidden_dim,num_classes])
+        self.params['b3']=np.zeros(num_classes)
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -80,7 +87,11 @@ class ThreeLayerConvNet(object):
         # computing the class scores for X and storing them in the scores          #
         # variable.                                                                #
         ############################################################################
-        pass
+        
+        L1_out, L1_cache = conv_relu_pool_forward(X, W1, b1, conv_param, pool_param)
+        L2_out, L2_cache = affine_relu_forward(L1_out,W2,b2)
+        L3_out, L3_cache = affine_forward(L2_out,W3,b3)
+        scores=L3_out
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -95,7 +106,18 @@ class ThreeLayerConvNet(object):
         # data loss using softmax, and make sure that grads[k] holds the gradients #
         # for self.params[k]. Don't forget to add L2 regularization!               #
         ############################################################################
-        pass
+        gradx={}
+        loss,gradx['soft']=softmax_loss(scores,y)
+        idx=3
+        gradx['X'+str(idx)],grads['W'+str(idx)],grads['b'+str(idx)]=affine_backward(gradx['soft'],L3_cache)
+        grads['W'+str(idx)]=grads['W'+str(idx)]+self.reg*W3
+        idx=2
+        gradx['X'+str(idx)],grads['W'+str(idx)],grads['b'+str(idx)]=affine_relu_backward(gradx['X3'],L2_cache)
+        grads['W'+str(idx)]=grads['W'+str(idx)]+self.reg*W2
+        idx=1
+        gradx['X'+str(idx)],grads['W'+str(idx)],grads['b'+str(idx)]=conv_relu_pool_backward(gradx['X2'],L1_cache)
+        grads['W'+str(idx)]=grads['W'+str(idx)]+self.reg*W1
+        
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################

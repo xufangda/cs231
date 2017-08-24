@@ -20,20 +20,38 @@ def softmax_loss_naive(W, X, y, reg):
   - loss as single float
   - gradient with respect to weights W; an array of same shape as W
   """
-  # Initialize the loss and gradient to zero.
+    # Initialize the loss and gradient to zero.
+  num_train=X.shape[0]
   loss = 0.0
   dW = np.zeros_like(W)
-
-  #############################################################################
-  # TODO: Compute the softmax loss and its gradient using explicit loops.     #
-  # Store the loss in loss and the gradient in dW. If you are not careful     #
-  # here, it is easy to run into numeric instability. Don't forget the        #
-  # regularization!                                                           #
-  #############################################################################
-  pass
-  #############################################################################
-  #                          END OF YOUR CODE                                 #
-  #############################################################################
+  
+    #############################################################################
+    # TODO: Compute the softmax loss and its gradient using explicit loops.     #
+    # Store the loss in loss and the gradient in dW. If you are not careful     #
+    # here, it is easy to run into numeric instability. Don't forget the        #
+    # regularization!                                                           #
+    #############################################################################
+  scores=X.dot(W)
+  scores=scores-np.amax(scores,axis=1)[:,np.newaxis]
+  
+  exp_scores=np.zeros_like(scores)
+  for i in xrange(num_train):
+    exp_row=np.exp(scores[i,:])
+    exp_scores[i,:]=exp_row/np.sum(exp_row)
+  loss-=np.log(exp_scores[[np.arange(num_train),y]])
+  loss=np.sum(loss)/num_train
+  loss += 0.5* reg * np.sum(W * W)
+    
+  for i in xrange(num_train):
+    exp_row=np.exp(scores[i,:])
+    tmp_row=exp_row/np.sum(exp_row)
+    tmp_row[y[i]]-=1
+    dW+=(X[i,:][:,np.newaxis]).dot(tmp_row[np.newaxis,:])
+  dW/=num_train  
+  dW += reg*W
+    #############################################################################
+    #                          END OF YOUR CODE                                 #
+    #############################################################################
 
   return loss, dW
 
@@ -47,6 +65,7 @@ def softmax_loss_vectorized(W, X, y, reg):
   # Initialize the loss and gradient to zero.
   loss = 0.0
   dW = np.zeros_like(W)
+  num_train=X.shape[0]
 
   #############################################################################
   # TODO: Compute the softmax loss and its gradient using no explicit loops.  #
@@ -54,7 +73,21 @@ def softmax_loss_vectorized(W, X, y, reg):
   # here, it is easy to run into numeric instability. Don't forget the        #
   # regularization!                                                           #
   #############################################################################
-  pass
+  scores=X.dot(W)
+  scores=scores-np.amax(scores,axis=1)[:,np.newaxis]
+  exp_scores=np.exp(scores)
+  exp_scores=np.divide(exp_scores.T,np.sum(exp_scores,axis=1)).T
+  loss-=np.log(exp_scores[[np.arange(num_train),y]])
+  loss=np.sum(loss)/num_train
+  loss += 0.5* reg * np.sum(W * W)
+  
+  Bool_one=np.zeros(exp_scores.shape)
+  Bool_one[[np.arange(num_train),y]]=1
+  exp_scores-=Bool_one
+  dW=(X.T).dot(exp_scores)
+  dW/=num_train  
+  dW += reg*W
+    
   #############################################################################
   #                          END OF YOUR CODE                                 #
   #############################################################################
