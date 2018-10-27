@@ -136,8 +136,30 @@ class CaptioningRNN(object):
         # with respect to all model parameters. Use the loss and grads variables   #
         # defined above to store loss and gradients; grads[k] should give the      #
         # gradients for self.params[k].                                            #
+        #                                                                          #
+        # Note also that you are allowed to make use of functions from layers.py   #
+        # in your implementation, if needed.                                       #
         ############################################################################
-        pass
+        
+        #
+        # image-> affine-> h0->   rnn -> affine -> loss
+        #                word-> vec|
+        L_proj = features.dot(W_proj)+b_proj
+        L_embed, cache_embed = word_embedding_forward(captions_in, W_embed)
+        if self.cell_type=='rnn':
+            h_rnn, cache_rnn = rnn_forward(L_embed, L_proj, Wx, Wh, b)
+        else:
+            h_rnn, cache_rnn = lstm_forward(L_embed, L_proj, Wx, Wh, b)
+        out_vocab, cache_vocab = temporal_affine_forward(h_rnn, W_vocab, b_vocab)
+        loss,d_loss=temporal_softmax_loss(out_vocab, captions_out, mask)
+        d_vocab, grads['W_vocab'], grads['b_vocab']=temporal_affine_backward(d_loss,cache_vocab)
+        if self.cell_type=='rnn':
+            d_rnn, d_h_rnn, grads['Wx'], grads['Wh'], grads['b']=rnn_backward(d_vocab, cache_rnn)
+        else:
+            d_rnn, d_h_rnn, grads['Wx'], grads['Wh'], grads['b']=lstm_backward(d_vocab, cache_rnn)
+        grads['W_embed'] = word_embedding_backward(d_rnn, cache_embed)
+        grads['W_proj']= features.T.dot(d_h_rnn)
+        grads['b_proj']= np.sum(d_h_rnn, axis=0)
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -177,7 +199,7 @@ class CaptioningRNN(object):
         W_embed = self.params['W_embed']
         Wx, Wh, b = self.params['Wx'], self.params['Wh'], self.params['b']
         W_vocab, b_vocab = self.params['W_vocab'], self.params['b_vocab']
-
+        
         ###########################################################################
         # TODO: Implement test-time sampling for the model. You will need to      #
         # initialize the hidden state of the RNN by applying the learned affine   #
@@ -190,7 +212,7 @@ class CaptioningRNN(object):
         # (3) Apply the learned affine transformation to the next hidden state to #
         #     get scores for all words in the vocabulary                          #
         # (4) Select the word with the highest score as the next word, writing it #
-        #     to the appropriate slot in the captions variable                    #
+        #     (the word index) to the appropriate slot in the captions variable   #
         #                                                                         #
         # For simplicity, you do not need to stop generating after an <END> token #
         # is sampled, but you can if you want to.                                 #
@@ -198,8 +220,40 @@ class CaptioningRNN(object):
         # HINT: You will not be able to use the rnn_forward or lstm_forward       #
         # functions; you'll need to call rnn_step_forward or lstm_step_forward in #
         # a loop.                                                                 #
+        #                                                                         #
+        # NOTE: we are still working over minibatches in this function. Also if   #
+        # you are using an LSTM, initialize the first cell state to zeros.        #
         ###########################################################################
-        pass
+        if self.cell_type=='rnn':
+            captions[:,0]=self._start
+            L_proj = features.dot(W_proj)+b_proj
+            Vec_in=W_embed[self._start,:]
+            rnn_out, _ = rnn_step_forward(Vec_in, L_proj, Wx, Wh, b)
+            out_vocab = rnn_out.dot(W_vocab) + b_vocab
+            h_next = np.argmax(out_vocab,axis=1)
+            captions[:,1]=h_next 
+            for i in range(max_length-2):
+                Vec_in=W_embed[h_next,:]
+                rnn_out, _ = rnn_step_forward(Vec_in, rnn_out, Wx, Wh, b)
+                out_vocab = rnn_out.dot(W_vocab) + b_vocab
+                h_next = np.argmax(out_vocab,axis=1)
+                captions[:,i+2]=h_next
+        else:
+            captions[:,0]=self._start
+            L_proj = features.dot(W_proj)+b_proj
+            Vec_in=W_embed[self._start,:]
+            prev_c=np.zeros_like(L_proj)
+            lstm_out, prev_c, _ = lstm_step_forward(Vec_in, L_proj, prev_c, Wx, Wh, b)
+            out_vocab = lstm_out.dot(W_vocab) + b_vocab
+            h_next = np.argmax(out_vocab,axis=1)
+            captions[:,1]=h_next 
+            for i in range(max_length-2):
+                Vec_in=W_embed[h_next,:]
+                lstm_out, prev_c, _ = lstm_step_forward(Vec_in, lstm_out, prev_c, Wx, Wh, b)
+                out_vocab = lstm_out.dot(W_vocab) + b_vocab
+                h_next = np.argmax(out_vocab,axis=1)
+                captions[:,i+2]=h_next
+        
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################

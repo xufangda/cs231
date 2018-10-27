@@ -3,8 +3,6 @@ from __future__ import print_function
 import numpy as np
 from cs231n.classifiers.linear_svm import *
 from cs231n.classifiers.softmax import *
-from past.builtins import xrange
-
 
 class LinearClassifier(object):
 
@@ -38,7 +36,7 @@ class LinearClassifier(object):
 
     # Run stochastic gradient descent to optimize W
     loss_history = []
-    for it in xrange(num_iters):
+    for it in range(num_iters):
       indices=np.random.choice(num_train,batch_size)  
       X_batch = X[indices,:]
       y_batch = y[indices]
@@ -54,15 +52,13 @@ class LinearClassifier(object):
       # Hint: Use np.random.choice to generate indices. Sampling with         #
       # replacement is faster than sampling without replacement.              #
       #########################################################################
-      
+      loss, grad = self.loss(X_batch, y_batch, reg)
+      loss_history.append(loss)
       #########################################################################
       #                       END OF YOUR CODE                                #
       #########################################################################
-
       # evaluate loss and gradient
-      loss, grad = self.loss(X_batch, y_batch, reg)
-      loss_history.append(loss)
-      
+
       # perform parameter update
       #########################################################################
       # TODO:                                                                 #
@@ -108,7 +104,7 @@ class LinearClassifier(object):
     """
     Compute the loss function and its derivative. 
     Subclasses will override this.
-    
+
     Inputs:
     - X_batch: A numpy array of shape (N, D) containing a minibatch of N
       data points; each point has dimension D.
@@ -119,9 +115,8 @@ class LinearClassifier(object):
     - loss as a single float
     - gradient with respect to self.W; an array of the same shape as W
     """
-    
-    return svm_loss_vectorized(self.W, X_batch, y_batch, reg)
-    
+    pass
+
 
 class LinearSVM(LinearClassifier):
   """ A subclass that uses the Multiclass SVM loss function """

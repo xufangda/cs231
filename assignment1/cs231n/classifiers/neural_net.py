@@ -2,8 +2,6 @@ from __future__ import print_function
 
 import numpy as np
 import matplotlib.pyplot as plt
-from past.builtins import xrange
-
 
 class TwoLayerNet(object):
   """
@@ -77,18 +75,12 @@ class TwoLayerNet(object):
     # Store the result in the scores variable, which should be an array of      #
     # shape (N, C).                                                             #
     #############################################################################
-    #ReLU
-    ReLU=lambda x:max(0,x)
+    first_layer = X.dot(W1)+b1
+    relu_mask=(first_layer>0)
+    relu_layer=(first_layer)*relu_mask
+    second_layer=relu_layer.dot(W2)+b2
         
-    # hidden_layer+ReLU
-    L1_result=np.dot(X,W1)+b1
-    L1_mask= L1_result>0
-    L1_result*=L1_mask
-    
-    # output_layer
-    L2_result=np.dot(L1_result,W2)+b2
-    scores=L2_result
-    
+    scores=second_layer
     #############################################################################
     #                              END OF YOUR CODE                             #
     #############################################################################
@@ -105,14 +97,12 @@ class TwoLayerNet(object):
     # in the variable loss, which should be a scalar. Use the Softmax           #
     # classifier loss.                                                          #
     #############################################################################
+    safe_output=second_layer-np.amax(second_layer,axis=1)[:,None]
+    exp_matrix= np.exp(safe_output)
+    prob_matrix=np.divide(exp_matrix.T,np.sum(exp_matrix,axis=1)).T
     
-    #softmax
-    softmax_result=L2_result-np.amax(L2_result,axis=1)[:,np.newaxis]
-    exp_scores=np.exp(softmax_result)
-    exp_scores=np.divide(exp_scores.T,np.sum(exp_scores,axis=1)).T
-    loss=-np.log(exp_scores[[np.arange(N),y]])
-    loss=np.sum(loss)/N
-    loss += 0.5* reg * (np.sum(W2**2)+np.sum(W1**2))
+    log_softmax=-np.log(prob_matrix[(np.arange(N),y)])
+    loss=np.sum(log_softmax)/N+np.sum(W1*W1)*reg*0.5+np.sum(W2*W2)*reg*0.5  
     
     #############################################################################
     #                              END OF YOUR CODE                             #
@@ -125,26 +115,20 @@ class TwoLayerNet(object):
     # and biases. Store the results in the grads dictionary. For example,       #
     # grads['W1'] should store the gradient on W1, and be a matrix of same size #
     #############################################################################
+    bool_ones=np.zeros_like(prob_matrix)
+    bool_ones[(np.arange(N),y)]=1
+    grad_softmax=(prob_matrix-bool_ones) 
     
-    #grad_W2
-    Bool_one=np.zeros(exp_scores.shape)
-    Bool_one[[np.arange(N),y]]=1
-    exp_scores-=Bool_one
-    dW2=(L1_result.T).dot(exp_scores)
-    dW2/=N 
-    dW2 += reg*W2
-    db2=np.sum(exp_scores,axis=0)/N
-    grads['W2']=dW2
-    grads['b2']=db2
     
-    #grad_W1
-    dW1=exp_scores.dot(W2.T)
-    dW1=dW1*L1_mask
-    dW1_result=X.T.dot(dW1)
-    grads['W1']=dW1_result/N + reg * W1
-    db1=np.sum(dW1,axis=0)/N
-    grads['b1']=db1
+    #############################################################################
+    #   X -> W1 -> relu -> W2 -> softmax                                        #
+    #  N*D  D*M   N*M     M*C      N*C                                          #
+    #############################################################################
     
+    grads['W2'] = (relu_layer.T).dot(grad_softmax)/N+reg * W2
+    grads['b2'] = np.sum(grad_softmax,axis=0) / N
+    grads['W1'] = (X.T).dot(grad_softmax.dot(W2.T) * relu_mask)/ N + reg * W1
+    grads['b1'] = np.sum(grad_softmax.dot(W2.T) * relu_mask, axis=0)/N 
     
     #############################################################################
     #                              END OF YOUR CODE                             #
@@ -181,14 +165,27 @@ class TwoLayerNet(object):
     train_acc_history = []
     val_acc_history = []
 
-    for it in xrange(num_iters):
+    for it in range(num_iters):
+      index=np.random.choice(num_train,batch_size)
+      X_batch = X[index,:]
+      y_batch = y[index]
+
+     # PCA optional test
+     # 2018-10-15 deperated because it is too slow
+     # XFD
+        
+#       PCA=True
+#       if PCA==True:  
+#           cov=X_batch.T.dot(X_batch)/X_batch.shape[0]
+#           U,S,V = np.linalg.svd(cov)
+#           X_input=X_batch.dot(U)#.dot(np.linalg.inv(S))
+#           X_batch=X_input  
+        
       #########################################################################
       # TODO: Create a random minibatch of training data and labels, storing  #
       # them in X_batch and y_batch respectively.                             #
       #########################################################################
-      indices=np.random.choice(num_train,batch_size)  
-      X_batch = X[indices,:]
-      y_batch = y[indices]
+      
       #########################################################################
       #                             END OF YOUR CODE                          #
       #########################################################################
@@ -203,10 +200,11 @@ class TwoLayerNet(object):
       # using stochastic gradient descent. You'll need to use the gradients   #
       # stored in the grads dictionary defined above.                         #
       #########################################################################
-      self.params['W1']-=learning_rate*grads['W1']
-      self.params['b1']-=learning_rate*grads['b1']
-      self.params['W2']-=learning_rate*grads['W2']
-      self.params['b2']-=learning_rate*grads['b2']
+      self.params['W2']-=grads['W2']*learning_rate
+      self.params['b2']-=grads['b2']*learning_rate
+      self.params['W1']-=grads['W1']*learning_rate
+      self.params['b1']-=grads['b1']*learning_rate
+    
       #########################################################################
       #                             END OF YOUR CODE                          #
       #########################################################################
@@ -230,7 +228,12 @@ class TwoLayerNet(object):
       'train_acc_history': train_acc_history,
       'val_acc_history': val_acc_history,
     }
+  
+    
 
+    
+    
+    
   def predict(self, X):
     """
     Use the trained weights of this two-layer network to predict labels for
@@ -248,10 +251,24 @@ class TwoLayerNet(object):
     """
     y_pred = None
 
+    # PCA optional test
+    # 2018-10-15 deperated because it is too slow
+    # XFD
+    
+#     PCA=True
+#     if PCA==True:  
+#         cov=X.T.dot(X)/X.shape[0]
+#         U,S,V = np.linalg.svd(cov)
+#         X_input=X.dot(U)#.dot(np.linalg.inv(S))
+#         X=X_input
+    
+    
     ###########################################################################
     # TODO: Implement this function; it should be VERY simple!                #
     ###########################################################################
-    y_pred=np.argmax(self.loss(X),axis=1)
+      
+    score_NN=self.loss(X)
+    y_pred=np.argmax(score_NN,axis=1)
     ###########################################################################
     #                              END OF YOUR CODE                           #
     ###########################################################################
